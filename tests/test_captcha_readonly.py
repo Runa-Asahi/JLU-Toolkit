@@ -1,9 +1,13 @@
 import os
+import sys
+
+import pytest
 from pathlib import Path
 
 from jlu_toolkit import captcha_util
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="chmod cannot make a dir read-only on Windows")
 def test_write_captcha_files_survives_readonly_cwd(monkeypatch, tmp_path):
     ro = tmp_path / "ro"
     ro.mkdir()
