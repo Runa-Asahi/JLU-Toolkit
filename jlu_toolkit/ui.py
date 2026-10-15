@@ -31,6 +31,10 @@ def data_dir() -> Path:
     return d
 
 
+import secrets as _secrets
+SSO_NONCE = _secrets.token_urlsafe(18)  # 每次启动换新；只经同源 /api/links 下发
+
+
 class Store:
     def __init__(self, root: Path):
         self.root = root
@@ -468,6 +472,24 @@ def make_handler(store: Store, login: Optional[LoginFlow] = None):
         def log_message(self, fmt, *args):  # 安静
             pass
 
+        def _sso_jump(self):
+            """GET /api/sso/jump?id=&n= —— 同源 nonce 校验后 302 到带 ST 的目标；失败退回普通地址 ?sso=failed。"""
+            import hmac, urllib.parse
+            from . import sso
+            q = {k: v[0] for k, v in urllib.parse.parse_qs(self.path.partition("?")[2]).items()}
+            sid = q.get("id", "")
+            if not hmac.compare_digest(q.get("n", ""), SSO_NONCE):
+                return self._send(403, b"bad nonce", "text/plain")
+            site = (self.headers.get("Sec-Fetch-Site") or "").lower()
+            if site and site not in ("same-origin", "none"):
+                return self._send(403, b"cross-site", "text/plain")
+            if not sso.capable(sid):
+                return self._send(404, b"not sso-capable", "text/plain")
+            loc, _ok = sso.jump_url(sid)
+            if not sso._jlu_https(loc):
+                return self._send(502, b"bad target", "text/plain")
+            return self._send(302, b"", "text/plain", {"Location": loc, "Referrer-Policy": "no-referrer"})
+
         def _host_ok(self) -> bool:
             host = (self.headers.get("Host") or "").split(":")[0]
             return host in ALLOWED_HOSTS
@@ -554,7 +576,14 @@ def make_handler(store: Store, login: Optional[LoginFlow] = None):
                 except ValueError as e:
                     return self._json({"ok": False, "error": str(e)}, 400)
             if path == "/api/links":
-                return self._json(campus_links_api())
+                from . import sso
+                j = campus_links_api()
+                for x in j.get("links") or []:
+                    if isinstance(x, dict) and sso.capable(x.get("id", "")):
+                        x["sso_url"] = "/api/sso/jump?id=" + x["id"] + "&n=" + SSO_NONCE
+                return self._json(j)
+            if path == "/api/sso/jump":
+                return self._sso_jump()
             if path == "/api/login/accounts":  # 只返回账号名，绝不返回密码
                 return self._json({"ok": True, "accounts": login.accounts()})
             if path == "/api/login":
