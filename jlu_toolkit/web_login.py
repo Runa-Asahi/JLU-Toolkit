@@ -72,12 +72,26 @@ class LoginFlow:
             return None
         return cred[0] if cred else None
 
+    def accounts(self) -> list:
+        try:
+            return jwxt.list_accounts()
+        except Exception:  # noqa: BLE001
+            return []
+
+    def delete_account(self, username: str) -> bool:
+        return jwxt.delete_account((username or "").strip())
+
     def start(self, username: str, password: str, remember: bool = True) -> dict:
         username = (username or "").strip()
         if not password:
             saved = jwxt.load_credentials()
             if saved and (not username or saved[0] == username):
                 username, password = saved
+            elif username:
+                try:
+                    password = jwxt.account_password(username) or ""
+                except Exception:  # noqa: BLE001
+                    password = ""
         if not username or not password:
             raise ValueError("请填写统一身份认证账号（邮箱前缀）和密码")
         with self._lock:

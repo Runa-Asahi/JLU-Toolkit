@@ -475,6 +475,12 @@ def make_handler(store: Store, login: Optional[LoginFlow] = None):
         def do_DELETE(self):
             if not self._host_ok():
                 return self._send(403, b"forbidden", "text/plain")
+            path = self.path.split("?")[0]
+            if path.startswith("/api/login/accounts/"):
+                import urllib.parse
+                u = urllib.parse.unquote(path[len("/api/login/accounts/"):])
+                ok = login.delete_account(u)
+                return self._json({"ok": ok, "accounts": login.accounts()}, 200 if ok else 404)
             if not self._oa_sub("DELETE"):
                 self._send(404, b"not found", "text/plain")
 
@@ -513,8 +519,11 @@ def make_handler(store: Store, login: Optional[LoginFlow] = None):
                     return self._json({"ok": False, "error": str(e)}, 400)
             if path == "/api/links":
                 return self._json(campus_links_api())
+            if path == "/api/login/accounts":  # 只返回账号名，绝不返回密码
+                return self._json({"ok": True, "accounts": login.accounts()})
             if path == "/api/login":
                 return self._json({"ok": True, "saved_username": login.saved_username(),
+                                   "accounts": login.accounts(),
                                    "session": jwxt.session_status()})
             if path == "/api/data":
                 return self._json(store.snapshot())

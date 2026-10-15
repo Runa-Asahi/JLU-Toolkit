@@ -169,21 +169,66 @@ def _secret(path: Path) -> "secure_store.SecretFile":
     return secure_store.SecretFile(path.parent, path.stem)
 
 
+def _cred_accounts(data) -> list:
+    """凭据文件里的账号列表（最近使用在前）；兼容旧的单账号格式。"""
+    out, seen = [], set()
+    if not isinstance(data, dict):
+        return out
+    items = list(data.get("accounts") or [])
+    if data.get("username") and data.get("password"):
+        items.insert(0, {"username": data["username"], "password": data["password"]})
+    for a in items:
+        if not isinstance(a, dict):
+            continue
+        u, pw = a.get("username"), a.get("password")
+        if u and pw and str(u) not in seen:
+            seen.add(str(u))
+            out.append({"username": str(u), "password": str(pw)})
+    return out
+
+
+def _save_accounts(accounts: list, path: Path) -> Path:
+    top = accounts[0] if accounts else {"username": "", "password": ""}
+    return _secret(path).save({"username": top["username"], "password": top["password"], "accounts": accounts})
+
+
 def save_credentials(username: str, password: str, path: Optional[Path] = None) -> Path:
-    """保存账号密码：优先系统钥匙串加密（见 secure_store），否则 0600 明文文件。"""
+    """保存账号密码（可多账号，最近使用的排第一）：优先系统钥匙串加密（见 secure_store），否则 0600 明文文件。"""
     path = path or default_cred_path()
-    return _secret(path).save({"username": username, "password": password})
+    accts = [a for a in _cred_accounts(_secret(path).load()) if a["username"] != username]
+    return _save_accounts([{"username": username, "password": password}] + accts, path)
 
 
 def load_credentials(path: Optional[Path] = None) -> Optional[tuple[str, str]]:
+    """最近使用的账号 (username, password)。"""
     path = path or default_cred_path()
-    data = _secret(path).load()
-    if not isinstance(data, dict):
-        return None
-    u, p = data.get("username"), data.get("password")
-    if not u or not p:
-        return None
-    return str(u), str(p)
+    accts = _cred_accounts(_secret(path).load())
+    return (accts[0]["username"], accts[0]["password"]) if accts else None
+
+
+def account_password(username: str, path: Optional[Path] = None) -> Optional[str]:
+    path = path or default_cred_path()
+    for a in _cred_accounts(_secret(path).load()):
+        if a["username"] == username:
+            return a["password"]
+    return None
+
+
+def list_accounts(path: Optional[Path] = None) -> list:
+    """已保存的账号名（不含密码），最近使用在前。"""
+    path = path or default_cred_path()
+    return [a["username"] for a in _cred_accounts(_secret(path).load())]
+
+
+def delete_account(username: str, path: Optional[Path] = None) -> bool:
+    """删除一个已保存账号及其密码；返回是否删到了。"""
+    path = path or default_cred_path()
+    accts = _cred_accounts(_secret(path).load())
+    rest = [a for a in accts if a["username"] != username]
+    if len(rest) == len(accts):
+        return False
+    _save_accounts(rest, path)
+    return True
 
 
 # ---- 会话状态（给 Web UI / MCP 用；不含任何秘密） ----

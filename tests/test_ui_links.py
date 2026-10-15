@@ -73,3 +73,9 @@ def test_page_sessions_hook_defensive():
     # /api/sessions（PR #16）缺失时 404 → 不显示状态；401 带 site 时横幅点名站点
     assert "/api/sessions" in PAGE and "if(!r.ok)return null" in PAGE
     assert "session_site" in PAGE and "SITEN(D.session_site)" in PAGE
+
+
+def test_header_title_never_truncated():
+    assert '<span class="ttl">SuperJLU</span>' in PAGE
+    assert "header .ttl{white-space:nowrap;flex:none}" in PAGE
+    assert "safe-area-inset-top" in PAGE and 'aria-label="刷新"' in PAGE

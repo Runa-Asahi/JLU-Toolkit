@@ -139,3 +139,18 @@ def test_ui_session_endpoint(cfg, mem):
         assert d["state"] == "missing" and d["needs_login"] is True
     finally:
         srv.shutdown()
+
+
+def test_multi_accounts(tmp_path):
+    from jlu_toolkit import jwxt as J
+    p = tmp_path / "credentials.json"
+    J.save_credentials("a", "pa", p)
+    J.save_credentials("b", "pb", p)
+    assert J.list_accounts(p) == ["b", "a"]
+    assert J.load_credentials(p) == ("b", "pb")
+    assert J.account_password("a", p) == "pa"
+    J.save_credentials("a", "pa2", p)
+    assert J.list_accounts(p) == ["a", "b"] and J.account_password("a", p) == "pa2"
+    assert J.delete_account("a", p) and not J.delete_account("zz", p)
+    assert J.list_accounts(p) == ["b"] and J.account_password("a", p) is None
+    assert J.load_credentials(p) == ("b", "pb")

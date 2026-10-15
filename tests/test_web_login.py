@@ -145,3 +145,12 @@ def test_http_endpoints(tmp_path, creds):
         assert 'id="lgc"' not in page and 'id="lgi"' not in page and "/api/login/captcha" not in page
     finally:
         httpd.shutdown()
+
+
+def test_start_uses_saved_password_for_other_account(monkeypatch):
+    monkeypatch.setattr(jwxt, "load_credentials", lambda: ("a", "pa"))
+    monkeypatch.setattr(jwxt, "account_password", lambda u: {"b": "good"}.get(u))
+    fc = FakeClient()
+    f = LoginFlow(lambda: fc)
+    f.start("b", "", remember=True)
+    assert ("pw", "b", "good") in fc.calls
