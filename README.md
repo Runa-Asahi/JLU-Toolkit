@@ -351,3 +351,13 @@ Web API（仅 127.0.0.1）：
 | DELETE | `/api/oa/subscriptions/<id>` 或 `?id=<id>` | – | `200 {"ok":true,"removed":"<id>"}`；不存在 `404`；缺 id `405` |
 
 校验：至少 1 个关键词，每个 ≤40 字、最多 20 个（自动去重、去空白，支持中文逗号）；channel 必须是数字；规则最多 100 条。
+
+## Windows 一键版 SuperJLU.exe（PyInstaller，测试中）
+
+双击 `SuperJLU.exe`（单文件、无控制台窗口）：在 127.0.0.1 的空闲端口后台启动界面并打开浏览器，系统托盘显示 SuperJLU 图标，菜单「打开 SuperJLU」「退出」。
+再次双击时，如果已有实例在运行，只会打开浏览器。日志：`%USERPROFILE%\.config\jlu-toolkit\desktop.log`。
+
+- 入口：`jlu_toolkit/desktop.py`（`python -m jlu_toolkit.desktop` 在 Linux/macOS 也能用；没有 pystray 时不显示托盘）
+- 构建：`pip install ".[desktop,captcha]" pyinstaller && python packaging/build_windows.py` → `dist/SuperJLU.exe`
+- 图标：`assets/brand/superjlu.ico`（exe 图标和托盘图标都用它）
+- CI：`.github/workflows/build-windows.yml`，只在手动运行或推 `v*` 标签时构建，产物 `SuperJLU-windows`

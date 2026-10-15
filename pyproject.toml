@@ -25,6 +25,7 @@ Issues = "https://github.com/Runa-Asahi/JLU-Toolkit/issues"
 mcp = ["mcp>=1.0"]
 captcha = ["pillow>=9.0"]
 ocr = ["pillow>=9.0", "ddddocr"]
+desktop = ["pystray>=0.19", "pillow>=9.0"]
 notify = ["plyer>=2.0"]
 [project.scripts]
 jlu-toolkit = "jlu_toolkit.cli:main"
