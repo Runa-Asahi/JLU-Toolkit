@@ -81,8 +81,9 @@ def add_rule(keywords, depts=None, channel: str = "", root: Optional[Path] = Non
     if not kws:
         raise ValueError("至少需要一个关键词")
     channel = str(channel or oa.DEFAULT_CHANNEL)
-    if not channel.isdigit():
-        raise ValueError("channel 必须是数字栏目 id")
+    from . import college
+    if not channel.isdigit() and not college.is_channel(channel):
+        raise ValueError("channel 必须是数字栏目 id 或学院栏目（如 csw-xytz）")
     r = _root(root)
     rules = list_rules(r)
     if len(rules) >= MAX_RULES:
@@ -117,10 +118,18 @@ def match(notice: dict, rule: dict) -> List[str]:
 def sync(client, channel: str = oa.DEFAULT_CHANNEL, root: Optional[Path] = None) -> dict:
     """只取第 1 页（含置顶），按 id 去重。首次运行只记录已见 id（seeded），不返回新条目。"""
     r = _root(root)
-    code, html, final = oa.get(client, oa.list_url(channel, 1))
-    if code != 200 or oa.needs_login(final, html):
-        raise jwxt.LoginError("OA 列表不可访问（需校园网/VPN 或登录）")
-    items = oa.parse_list(html)["items"]
+    from . import college
+    if college.is_channel(channel):
+        res = college.fetch(channel)
+        college.save(r, res)
+        if not res["ok"]:
+            raise jwxt.LoginError(res["hint"])
+        items = res["items"]
+    else:
+        code, html, final = oa.get(client, oa.list_url(channel, 1))
+        if code != 200 or oa.needs_login(final, html):
+            raise jwxt.LoginError("OA 列表不可访问（需校园网/VPN 或登录）")
+        items = oa.parse_list(html)["items"]
     for i in items:
         # 以请求的栏目为准：详情链接里的 channelId 可能是子栏目，避免规则按栏目过滤时漏掉
         i["link_channel"] = i.get("channel", "")
@@ -134,7 +143,7 @@ def sync(client, channel: str = oa.DEFAULT_CHANNEL, root: Optional[Path] = None)
     seen_map[channel] = ([i["id"] for i in new] + seen)[:MAX_SEEN]
     st.update({"updated": _now(), "seeded": True})
     _dump(r / SEEN_FILE, st)
-    if items:
+    if items and not college.is_channel(channel):
         oa.save(r, {"channel": channel, "fetched_at": st["updated"], "items": items, "channels": {}})
     return {"channel": channel, "first_run": first, "fetched": len(items), "new": [] if first else new,
             "seeded": len(new) if first else 0}
@@ -206,7 +215,14 @@ def watch_once(client, root: Optional[Path] = None, notifier: Callable = notify,
     for i, ch in enumerate(channels):
         if i:
             time.sleep(2)  # 礼貌限速
-        res = sync(client, ch, r)
+        try:
+            res = sync(client, ch, r)
+        except jwxt.LoginError as e:
+            from . import college
+            if not college.is_channel(ch):
+                raise
+            out(f"[订阅] 栏目 {ch} 跳过：{e}")
+            continue
         if res["first_run"]:
             out(f"[OA] 首次运行：已记录栏目 {ch} 的 {res['seeded']} 条现有通知，不发提醒")
         total_new += len(res["new"])

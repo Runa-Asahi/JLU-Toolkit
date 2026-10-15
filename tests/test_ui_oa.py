@@ -68,7 +68,7 @@ def test_notices_shape_filter_and_sanitize(srv):
     code, j = _get(base + "/api/oa/notices?limit=x")
     assert code == 400 and j["ok"] is False
     _, j = _get(base + "/api/oa/channels")
-    assert j["channels"] == [{"id": "179577", "name": "校内通知"}]
+    assert [c for c in j["channels"] if "-" not in c["id"]] == [{"id": "179577", "name": "校内通知"}]
 
 
 def test_notice_detail(srv):
@@ -125,7 +125,7 @@ def test_page_has_oa_tab():
 def test_channels_from_file_and_category(srv):
     base, root = srv
     _, j = _get(base + "/api/oa/channels")
-    assert j["channels"] == [{"id": "179577", "name": "校内通知"}]  # 无文件时回退
+    assert [c for c in j["channels"] if "-" not in c["id"]] == [{"id": "179577", "name": "校内通知"}]  # 无文件时回退
     (root / "oa_channels.json").write_text(json.dumps({"179578": "学术讲座", "179579": "示例公告"}, ensure_ascii=False),
                                            encoding="utf-8")
     d = json.loads(json.dumps(SAMPLE))
@@ -133,7 +133,7 @@ def test_channels_from_file_and_category(srv):
                                       "top": False, "url": ""}]
     (root / "oa_notices.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
     _, j = _get(base + "/api/oa/channels")
-    assert [c["id"] for c in j["channels"]] == ["179577", "179578", "179579"]
+    assert [c["id"] for c in j["channels"] if "-" not in c["id"]] == ["179577", "179578", "179579"]
     _, j = _get(base + "/api/oa/notices?category=179578")
     assert j["channel_name"] == "学术讲座" and [i["id"] for i in j["items"]] == ["50"]
     _, j = _get(base + "/api/oa/notices?category=" + urllib.request.quote("讲座"))

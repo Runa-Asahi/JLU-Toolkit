@@ -183,10 +183,10 @@ dialog#login .err{color:#d4573b;font-size:13px;min-height:18px;margin:8px 0 0}
 <section class="tab" id="t-ks"><div class="card"><h2>考试倒计时</h2><div id="exams"></div></div></section>
 <section class="tab" id="t-oa">
  <div id="oa-list-v">
- <div class="card"><div class="row"><h2 style="margin:0">OA 通知 <span class="sub" id="oa-meta"></span></h2><span class="sp"></span><button class="btn" id="oa-ref" title="只取 OA 第 1 页">⟳ 更新</button></div>
+ <div class="card"><div class="row"><h2 style="margin:0">通知 <span class="sub" id="oa-meta"></span></h2><span class="sp"></span><button class="btn" id="oa-ref" title="只取第 1 页">⟳ 更新</button></div>
   <div class="seg" id="oa-ch" style="margin:12px 0 0;overflow-x:auto" hidden></div>
   <div class="oaf" style="margin-top:12px"><input id="oa-kw" type="search" placeholder="搜索标题或发文单位（本地筛选）"><select id="oa-dept"><option value="">全部单位</option></select></div>
-  <p class="sub" style="margin:10px 0 0">数据来自 OA（oa.jlu.edu.cn），只读、保存在本机。校外访问需先连接 <code>vpn.jlu.edu.cn</code>。</p></div>
+  <p class="sub" style="margin:10px 0 0" id="oa-src">数据来自 OA（oa.jlu.edu.cn）和软件学院、计算机学院官网，只读、保存在本机。OA 校外访问需先连接 <code>vpn.jlu.edu.cn</code>。</p></div>
  <div class="card" id="oa-box" style="padding:8px 14px"><div class="state"><div class="spin"></div><b>正在读取通知…</b></div></div>
  <div class="card" id="oa-sub"><h2>关键词订阅</h2><div id="oa-sub-b"><p class="sub" style="margin:0">读取中…</p></div></div>
  </div>
@@ -351,13 +351,14 @@ $("#rq").onclick=async()=>{const b=$("#rq");b.disabled=true;b.textContent="查�
  const j=await api("/api/rooms",{mode:RM,campus:$("#rc").value,building:$("#rb").value,kind:$("#rt").value,date:$("#rd").value,weeks:$("#rw").value,weekday:$("#rwd").value,periods:`${$("#rp1").value}-${$("#rp2").value}`,seat_min:$("#rs1").value,seat_max:$("#rs2").value,exam_min:$("#re1").value,exam_max:$("#re2").value,extra});RR=j.rooms;renderRooms(j)}catch(e){toast("查询失败："+e.message)}finally{b.disabled=false;b.textContent="查询"}};
 let OA=null,OAQ={kw:"",dept:""},OAERR="",OACH="179577",OACHS=null;
 function oaFilter(items,q){const k=(q.kw||"").trim().toLowerCase();return items.filter(i=>(!q.dept||i.dept===q.dept)&&(!k||(i.title+" "+i.dept).toLowerCase().includes(k)))}
-function oaLink(u,label){return/^https?:\/\/oa\.jlu\.edu\.cn\//.test(u||"")?`<a class="btn ghost" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${label}</a>`:""}
+function oaLink(u,label){return/^https?:\/\/(oa|csw|ccst)\.jlu\.edu\.cn\//.test(u||"")?`<a class="btn ghost" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${label}</a>`:""}
 function renderOA(){const box=$("#oa-box");queueMicrotask(()=>{if(OA&&OA.offline===true&&!box.querySelector(".offl"))box.insertAdjacentHTML("afterbegin",offlineBadge(OA))});if(OAERR&&!OA){box.innerHTML=`<div class="state"><b>读取通知失败</b>${esc(OAERR)}<div class="sub" style="margin-top:6px">校外请先连接 vpn.jlu.edu.cn 再点“更新”。</div><div style="margin-top:14px"><button class="btn pri" id="oa-retry">重试</button></div></div>`;$("#oa-retry").onclick=loadOA;return}
  if(!OA)return;const all=OA.items||[];const ds=[...new Set(all.map(i=>i.dept).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh"));const sel=$("#oa-dept");sel.innerHTML='<option value="">全部单位</option>'+ds.map(d=>`<option${d===OAQ.dept?" selected":""}>${esc(d)}</option>`).join("");
+ const hint=OA.source==="college"&&OA.status==="need_campus"?`<div class="state" style="padding:10px 4px"><b>需校园网</b>${esc(OA.hint||"")}</div>`:"";
  $("#oa-meta").textContent=all.length?`${all.length} 条${OA.fetched_at?" · 更新于 "+String(OA.fetched_at).replace("T"," ").slice(0,16):""}`:"";
- if(!all.length){box.innerHTML=`<div class="state"><b>还没有通知</b>点右上角“更新”从 OA 取第一页，或在终端运行 <code>jlu-toolkit oa notices</code>。</div>`;return}
+ if(!all.length){box.innerHTML=hint||(OA.source==="college"?`<div class="state"><b>还没有消息</b>点右上角“更新”从学院官网取第一页。</div>`:`<div class="state"><b>还没有通知</b>点右上角“更新”从 OA 取第一页，或在终端运行 <code>jlu-toolkit oa notices</code>。</div>`);return}
  const it=oaFilter(all,OAQ);if(!it.length){box.innerHTML=`<div class="state"><b>没有符合条件的通知</b>换个关键词或单位试试。</div>`;return}
- box.innerHTML=`<ul class="oal">${it.map(i=>`<li data-id="${esc(i.id)}" tabindex="0"><div class="tt">${i.top?'<span class="pin">置顶</span>':""}${esc(i.title)}<span class="mt">${esc(i.dept||"未知单位")} · ${esc(i.time||"")}</span></div><span class="ar">›</span></li>`).join("")}</ul>`;
+ box.innerHTML=hint+`<ul class="oal">${it.map(i=>`<li data-id="${esc(i.id)}" tabindex="0"><div class="tt">${i.top?'<span class="pin">置顶</span>':""}${esc(i.title)}<span class="mt">${esc(i.dept||"未知单位")} · ${esc(i.time||"")}</span></div><span class="ar">›</span></li>`).join("")}</ul>`;
  box.querySelectorAll("li").forEach(li=>{li.onclick=()=>openOA(li.dataset.id);li.onkeydown=e=>{if(e.key==="Enter")openOA(li.dataset.id)}})}
 function renderOACh(){const box=$("#oa-ch"),l=OACHS||[];box.hidden=l.length<2;box.innerHTML=l.map(c=>`<button data-ch="${esc(c.id)}" class="${c.id===OACH?"on":""}">${esc(c.name||c.id)}</button>`).join("");box.querySelectorAll("button").forEach(b=>b.onclick=()=>{OACH=b.dataset.ch;OA=null;OAQ.dept="";renderOACh();$("#oa-box").innerHTML=`<div class="state"><div class="spin"></div><b>正在读取通知…</b></div>`;loadOA()})}
 async function loadOA(){OAERR="";if(!OACHS){try{OACHS=(await api("/api/oa/channels")).channels}catch(e){OACHS=[{id:"179577",name:"校内通知"}]}if(!OACHS.some(c=>c.id===OACH))OACH=(OACHS[0]||{id:"179577"}).id;renderOACh()}try{OA=await api("/api/oa/notices?category="+encodeURIComponent(OACH))}catch(e){OA=null;OAERR=e.message}renderOA()}
@@ -365,12 +366,12 @@ function oaBack(){$("#oa-detail-v").hidden=true;$("#oa-list-v").hidden=false}
 async function openOA(id){const v=$("#oa-detail-v");$("#oa-list-v").hidden=true;v.hidden=false;v.innerHTML=`<div class="card"><div class="state"><div class="spin"></div><b>正在读取…</b></div></div>`;scrollTo(0,0);
  let i;try{i=(await api("/api/oa/notice?id="+encodeURIComponent(id))).item}catch(e){v.innerHTML=`<div class="card"><button class="btn ghost" id="oa-back">‹ 返回</button><div class="state"><b>读取失败</b>${esc(e.message)}</div></div>`;$("#oa-back").onclick=oaBack;return}
  const atts=i.attachments||[];
- v.innerHTML=`<div class="card oad"><div class="row" style="margin-bottom:10px"><button class="btn ghost" id="oa-back">‹ 返回</button><span class="sp"></span>${oaLink(i.url,"在 OA 中打开 ↗")}</div><h2>${i.top?'<span class="pin">置顶</span>':""}${esc(i.title)}</h2><div class="sub">${esc(i.dept||"未知单位")} · ${esc(i.time||"")}</div>`+
-  (i.text?`<div class="body">${esc(i.text)}</div>`:`<div class="state" style="padding:28px 8px"><b>本地没有正文</b>点“在 OA 中打开”查看原文（校外需先连接 vpn.jlu.edu.cn）。</div>`)+
+ v.innerHTML=`<div class="card oad"><div class="row" style="margin-bottom:10px"><button class="btn ghost" id="oa-back">‹ 返回</button><span class="sp"></span>${oaLink(i.url,i.source==="college"?"打开原文 ↗":"在 OA 中打开 ↗")}</div><h2>${i.top?'<span class="pin">置顶</span>':""}${esc(i.title)}</h2><div class="sub">${esc(i.dept||"未知单位")} · ${esc(i.time||"")}</div>`+
+  (i.text?`<div class="body">${esc(i.text)}</div>`:`<div class="state" style="padding:28px 8px">${i.source==="college"?"<b>学院新闻只保存标题</b>点“打开原文”在新标签页查看。":"<b>本地没有正文</b>点“在 OA 中打开”查看原文（校外需先连接 vpn.jlu.edu.cn）。"}</div>`)+
   (atts.length?`<h2 style="font-size:15px;margin-top:6px">附件 <span class="sub">${atts.length}</span></h2><div class="att">${atts.map(a=>`<a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">📎 ${esc(a.name)}</a>`).join("")}</div>`:"")+`</div>`;
  $("#oa-back").onclick=oaBack}
 $("#oa-kw").oninput=e=>{OAQ.kw=e.target.value;renderOA()};$("#oa-dept").onchange=e=>{OAQ.dept=e.target.value;renderOA()};
-$("#oa-ref").onclick=async()=>{const b=$("#oa-ref");b.disabled=true;b.textContent="更新中…";try{OA=await api("/api/oa/refresh",{category:OACH});OAERR="";renderOA();toast("已更新 OA 第一页")}catch(e){toast(e.message)}finally{b.disabled=false;b.textContent="⟳ 更新"}};
+$("#oa-ref").onclick=async()=>{const b=$("#oa-ref");b.disabled=true;b.textContent="更新中…";try{OA=await api("/api/oa/refresh",{category:OACH});OAERR="";renderOA();toast(OA.status==="need_campus"?"连不上学院官网，需校园网":"已更新第一页")}catch(e){toast(e.message)}finally{b.disabled=false;b.textContent="⟳ 更新"}};
 async function subReq(m,path,body){const r=await fetch(path,body?{method:m,headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{method:m});let j=null;try{j=await r.json()}catch(_){}if(r.status===404&&(!j||j.ok===undefined)){const e=new Error("NOAPI");e.noapi=true;throw e}if(!r.ok||!j||j.ok===false)throw new Error((j&&j.error)||("HTTP "+r.status));return j}
 const OACHN=id=>((OACHS||[]).find(c=>c.id===id)||{}).name||id;
 async function loadSubs(){const b=$("#oa-sub-b");let j;try{j=await subReq("GET","/api/oa/subscriptions?limit=20")}catch(e){b.innerHTML=e.noapi?`<p class="sub" style="margin:0">当前版本还没有订阅功能，请更新 SuperJLU 后再试。</p>`:`<p class="sub" style="margin:0">读取订阅失败：${esc(e.message)}</p>`;return}

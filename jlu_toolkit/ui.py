@@ -301,7 +301,13 @@ def _oa_known(store: Store) -> dict:
     from . import oa
     f = store._json("oa_channels.json", {})
     f = {str(k): str(v) for k, v in f.items()} if isinstance(f, dict) else {}
-    return {**oa.KNOWN_CHANNELS, **f, **(_oa_data(store).get("channels") or {})}
+    from . import college
+    return {**oa.KNOWN_CHANNELS, **f, **(_oa_data(store).get("channels") or {}), **college.channels()}
+
+
+def _resolve(cat: str, known: dict) -> str:
+    from . import college, oa
+    return cat if college.is_channel(cat) else oa.resolve_category(cat, known)
 
 
 def oa_channels_api(store: Store) -> dict:
@@ -314,19 +320,31 @@ def oa_notices_api(store: Store, q: dict) -> dict:
     from . import oa
     d = _oa_data(store)
     known = _oa_known(store)
-    ch = oa.resolve_category(q.get("category", ""), known)
+    ch = _resolve(q.get("category", ""), known)
     kw = q.get("keyword", "").strip()
     try:
         limit = max(1, min(500, int(q.get("limit") or 500)))
     except ValueError:
         raise ValueError("limit 应为整数")
-    items = [_oa_item(i) for i in ((d.get("channels_items") or {}).get(ch) or []) if isinstance(i, dict)]
+    from . import college
+    extra = {}
+    if college.is_channel(ch):
+        d = college.load(store.root)
+        src, _ = college._split(ch)
+        items = [{**_oa_item(i), "url": college.safe_url(i.get("url"), src["host"])}
+                 for i in ((d.get("channels_items") or {}).get(ch) or []) if isinstance(i, dict)]
+        st = (d.get("status") or {}).get(ch) or {}
+        extra = {"source": "college", "status": st.get("status", ""), "hint": st.get("hint", ""),
+                 "source_url": college.list_url(ch)}
+        d = {**d, "updated": st.get("at") or d.get("updated")}
+    else:
+        items = [_oa_item(i) for i in ((d.get("channels_items") or {}).get(ch) or []) if isinstance(i, dict)]
     if kw:
         items = [i for i in items if kw in i["title"] or kw in i["dept"]]
     items.sort(key=lambda i: (i["top"], i["time"], i["id"]), reverse=True)
     items = items[:limit]
     return {"ok": True, "channel": ch, "channel_name": known.get(ch) or oa.KNOWN_CHANNELS.get(ch, ""),
-            "count": len(items), "fetched_at": d.get("updated"), "items": items}
+            "count": len(items), "fetched_at": d.get("updated"), "items": items, **extra}
 
 
 def oa_notice_api(store: Store, nid: str) -> Optional[dict]:
@@ -335,13 +353,23 @@ def oa_notice_api(store: Store, nid: str) -> Optional[dict]:
         for i in lst or []:
             if isinstance(i, dict) and str(i.get("id")) == nid:
                 return {"ok": True, "item": _oa_item(i, full=True)}
+    from . import college
+    i = college.find(store.root, nid)
+    if i:
+        src, _ = college._split(i.get("channel", ""))
+        return {"ok": True, "item": {**_oa_item(i, full=True), "url": college.safe_url(i.get("url"), src["host"]),
+                                     "source": "college"}}
     return None
 
 
 def oa_refresh_api(store: Store, body: dict) -> dict:
     """POST /api/oa/refresh —— 只抓第 1 页（max_pages=1），写回本地缓存。"""
     from . import oa
-    ch = oa.resolve_category(str(body.get("category") or ""), _oa_known(store))
+    from . import college
+    ch = _resolve(str(body.get("category") or ""), _oa_known(store))
+    if college.is_channel(ch):
+        college.save(store.root, college.fetch(ch))
+        return oa_notices_api(store, {"category": ch})
     client = jwxt.JwxtClient()
     has = bool(client.load_session())
     res = oa.fetch_notices(client, ch, limit=30, max_pages=1)
