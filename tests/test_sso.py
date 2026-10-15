@@ -91,3 +91,14 @@ def test_http_endpoint(monkeypatch, srv):
     assert _req(srv, links["jwxt"]["sso_url"], {**h, "Sec-Fetch-Site": "cross-site"})[0] == 403
     n = links["jwxt"]["sso_url"].split("n=")[1]
     assert _req(srv, "/api/sso/jump?id=pay&n=" + n, h)[0] == 404
+
+
+def test_jwxt_service_is_portal_entry(monkeypatch):
+    """回归：教务必须用门户入口作 service，而非 CLI 首登的根路径（否则浏览器落回登录页）。"""
+    import urllib.parse
+    seen = []
+    _mock(monkeypatch, CK, (302, "", jwxt.IEDU_PORTAL + "?ticket=ST-2-x", b""), seen)
+    url, ok = sso.jump_url("jwxt")
+    svc = urllib.parse.parse_qs(urllib.parse.urlparse(seen[0]).query)["service"][0]
+    assert svc == jwxt.IEDU_PORTAL and svc != jwxt.CAS_SERVICE
+    assert ok and url.startswith(jwxt.IEDU_PORTAL)

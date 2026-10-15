@@ -12,7 +12,10 @@ from . import jwxt, sessions
 # site id → (CAS service, 直接打开时的目标 URL)
 # ilearn：ilearntec → ilearn.jlu.edu.cn/cas-server → cas.jlu.edu.cn/tpass/login?service=jwcidentity…（2026-10-15 只读探测）
 SSO_TARGETS = {
-    "jwxt": (jwxt.CAS_SERVICE, jwxt.IEDU_PORTAL),
+    # jwxt：不能用 CLI 首登的短 service（https://iedu.jlu.edu.cn/）。浏览器带 ticket 落在根路径后，
+    # 金智 EMAP 门户/应用的 CAS 过滤器只认「该入口 URL」作 service（同 JwxtClient 的 emap_cas_exchange），
+    # 浏览器又没有 cas.jlu.edu.cn 的 CASTGC，于是又被送回登录页。与 CLI 换票一致：service = 门户入口本身。
+    "jwxt": (jwxt.IEDU_PORTAL, jwxt.IEDU_PORTAL),
     "ilearn": ("https://jwcidentity.jlu.edu.cn/iplat-pass-jlu/thirdLogin/jlu/login",
                "https://ilearntec.jlu.edu.cn/coursecenter/main/index"),
 }
