@@ -66,3 +66,17 @@ def test_subscription_on_college(tmp_path, monkeypatch):
     res = oa_subscribe.sync(None, "csw-xytz", tmp_path)
     hits = oa_subscribe.record_matches(res["new"], tmp_path)
     assert len(hits) == 1 and hits[0]["rule_id"] == rule["id"]
+
+
+def test_channel_order_college_before_hospitals(tmp_path):
+    import json
+    from jlu_toolkit import ui, college
+    d = tmp_path
+    (d / "oa_channels.json").write_text(json.dumps({"1": "第二医院", "2": "教务通知", "3": "第一医院", "4": "动科"}, ensure_ascii=False), encoding="utf-8")
+    st = ui.Store(tmp_path)
+    names = [c["name"] for c in ui.oa_channels_api(st)["channels"]]
+    cn = list(college.channels().values())
+    i = names.index(cn[0])
+    assert names[:i] == ["校内通知", "教务通知"]
+    assert names[i:i + len(cn)] == cn
+    assert names[i + len(cn):] == ["第二医院", "第一医院", "动科"]

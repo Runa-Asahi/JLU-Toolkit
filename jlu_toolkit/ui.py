@@ -302,7 +302,15 @@ def _oa_known(store: Store) -> dict:
     f = store._json("oa_channels.json", {})
     f = {str(k): str(v) for k, v in f.items()} if isinstance(f, dict) else {}
     from . import college
-    return {**oa.KNOWN_CHANNELS, **f, **(_oa_data(store).get("channels") or {}), **college.channels()}
+    oa_ch = {**oa.KNOWN_CHANNELS, **f, **(_oa_data(store).get("channels") or {})}
+    lead = {k: v for k, v in oa_ch.items() if not _OA_TAIL.search(v)}
+    tail = {k: v for k, v in oa_ch.items() if _OA_TAIL.search(v)}
+    # 顺序：OA 常规栏目 → 软件学院/计算机学院 → 医院、动科等院系栏目
+    return {**lead, **college.channels(), **tail}
+
+
+import re as _re
+_OA_TAIL = _re.compile(r"医院|动科|动物")
 
 
 def _resolve(cat: str, known: dict) -> str:
