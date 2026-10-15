@@ -165,3 +165,16 @@ def test_cli_rooms_json_is_ascii(monkeypatch, capsys):
     out = capsys.readouterr().out.strip()
     import json as _j
     assert out.isascii() and "error" in _j.loads(out)
+
+
+def test_campuses_hardcoded_in_page_and_api(tmp_path, monkeypatch):
+    from jlu_toolkit import ui
+    from jlu_toolkit.ui_page import PAGE
+    names = [c["name"] for c in ui.CAMPUSES]
+    assert names == ["前卫校区", "南岭校区", "新民校区", "朝阳校区", "南湖校区", "和平校区"]
+    for c in ui.CAMPUSES:
+        assert f'code:"{c["code"]}",name:"{c["name"]}"' in PAGE
+    assert 'id="rcl"' not in PAGE and "点“加载”" not in PAGE
+    assert "localStorage" in PAGE and "superjlu.room.campus" in PAGE
+    monkeypatch.setattr(ui, "_client", lambda: (_ for _ in ()).throw(RuntimeError("no session")))
+    assert ui.campuses_api(ui.Store(tmp_path)) == {"campuses": ui.CAMPUSES}

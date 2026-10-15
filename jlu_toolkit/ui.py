@@ -170,12 +170,21 @@ def _client() -> "jwxt.JwxtClient":
     return c
 
 
+# 吉大六个校区（教务代码表 01–06）；前端同样内置，接口取不到时也用这份
+CAMPUSES = [{"code": "01", "name": "前卫校区"}, {"code": "02", "name": "南岭校区"},
+            {"code": "03", "name": "新民校区"}, {"code": "04", "name": "朝阳校区"},
+            {"code": "05", "name": "南湖校区"}, {"code": "06", "name": "和平校区"}]
+
+
 def campuses_api(store: Store) -> dict:
     from . import rooms
     cache = store.p("campuses.json")
     if cache.exists():
         return {"campuses": json.loads(cache.read_text(encoding="utf-8"))}
-    c = _client()
+    try:
+        c = _client()
+    except Exception:  # noqa: BLE001  无会话时直接给内置列表
+        return {"campuses": CAMPUSES}
     lst = rooms.list_campuses(c)
     cache.write_text(json.dumps(lst, ensure_ascii=False), encoding="utf-8")
     c.save_session()

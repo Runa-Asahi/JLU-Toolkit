@@ -159,7 +159,7 @@ dialog#login .err{color:#d4573b;font-size:13px;min-height:18px;margin:8px 0 0}
 <section class="tab" id="t-js"><div class="card"><h2>空教室</h2>
  <div class="seg" id="rmode"><button class="on" data-m="date">按日期查询</button><button data-m="week">按周次查询</button></div>
  <div class="rgrid">
-  <label>学校校区<select id="rc"><option value="">（点“加载”）</option></select></label>
+  <div style="grid-column:1/-1"><span class="sub">学校校区</span><div class="seg" id="rcs" role="radiogroup" aria-label="学校校区" style="flex-wrap:wrap"></div><input type="hidden" id="rc"></div>
   <label>教学楼<select id="rb"><option value="">全部</option></select></label>
   <label>教室类型<select id="rt"><option value="">全部</option></select></label>
   <label class="m-date">空闲日期<input type="date" id="rd"></label>
@@ -170,7 +170,7 @@ dialog#login .err{color:#d4573b;font-size:13px;min-height:18px;margin:8px 0 0}
   <label>考试座位数<span class="rng"><input type="number" id="re1" min="0" placeholder="不限">–<input type="number" id="re2" min="0" placeholder="不限"></span></label>
  </div>
  <details id="rmore"><summary>更多条件</summary><div class="rgrid" id="rextra"><p class="sub">加载中…</p></div></details>
- <div class="row" style="margin-top:8px"><button class="btn ghost" id="rcl">加载</button><span style="flex:1"></span><button class="btn pri" id="rq">查询</button></div>
+ <div class="row" style="margin-top:8px"><span style="flex:1"></span><button class="btn pri" id="rq">查询</button></div>
  <p class="sub" id="rinfo" style="margin:8px 0 0">需要已保存会话；结果实时来自教务，自动翻页取全。</p></div>
  <div class="card" id="rres" hidden></div></section>
 <section class="tab" id="t-ks"><div class="card"><h2>考试倒计时</h2><div id="exams"></div></div></section>
@@ -324,8 +324,17 @@ let RM="date",RR=[],RS={k:"name",d:1};
 document.querySelectorAll("#rmode button").forEach(b=>b.onclick=()=>{RM=b.dataset.m;document.querySelectorAll("#rmode button").forEach(x=>x.classList.toggle("on",x===b));document.querySelectorAll(".m-date").forEach(e=>e.hidden=RM!=="date");document.querySelectorAll(".m-week").forEach(e=>e.hidden=RM!=="week")});
 const opts=(l,all)=>(all?`<option value="">${all}</option>`:"")+l.map(c=>`<option value="${esc(c.code)}">${esc(c.name)}</option>`).join("");
 async function loadBuildings(){const c=$("#rc").value;if(!c){$("#rb").innerHTML=opts([],"全部");return}try{const j=await api("/api/rooms/buildings",{campus:c});$("#rb").innerHTML=opts(j.buildings,"全部")}catch(e){toast(e.message)}}
-$("#rc").onchange=loadBuildings;
-$("#rcl").onclick=async()=>{try{const j=await api("/api/rooms/campuses",{});$("#rc").innerHTML=opts(j.campuses)||'<option value="">未取到校区</option>';await loadBuildings();const t=await api("/api/rooms/types",{});$("#rt").innerHTML=opts(t.types,"全部");const f=await api("/api/rooms/fields",{});$("#rextra").innerHTML=f.fields.map(x=>`<label>${esc(x.caption||x.name)}<input data-f="${esc(x.name)}" placeholder="${esc(x.name)}"></label>`).join("")||'<p class="sub">元数据中没有其它检索字段</p>';toast(`已加载 ${j.campuses.length} 校区 · ${t.types.length} 类型`)}catch(e){toast(e.message)}};
+// 六个校区固定（教务代码表 01–06，已与真实 campuses.json 核对），不再需要「加载」
+const CAMPUSES=[{code:"01",name:"前卫校区"},{code:"02",name:"南岭校区"},{code:"03",name:"新民校区"},{code:"04",name:"朝阳校区"},{code:"05",name:"南湖校区"},{code:"06",name:"和平校区"}];
+const RCKEY="superjlu.room.campus";
+function lsGet(k){try{return localStorage.getItem(k)}catch(_){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(_){}}
+function pickCampus(code){$("#rc").value=code;lsSet(RCKEY,code);document.querySelectorAll("#rcs button").forEach(b=>{const on=b.dataset.c===code;b.classList.toggle("on",on);b.setAttribute("aria-checked",on?"true":"false")});loadBuildings()}
+$("#rcs").innerHTML=CAMPUSES.map(c=>`<button type="button" role="radio" data-c="${esc(c.code)}">${esc(c.name.replace(/校区$/,""))}</button>`).join("");
+document.querySelectorAll("#rcs button").forEach(b=>b.onclick=()=>pickCampus(b.dataset.c));
+let RMETA=false;
+async function roomsInit(){const last=lsGet(RCKEY);pickCampus(CAMPUSES.some(c=>c.code===last)?last:CAMPUSES[0].code);if(RMETA)return;RMETA=true;try{const t=await api("/api/rooms/types",{});$("#rt").innerHTML=opts(t.types,"全部");const f=await api("/api/rooms/fields",{});$("#rextra").innerHTML=f.fields.map(x=>`<label>${esc(x.caption||x.name)}<input data-f="${esc(x.name)}" placeholder="${esc(x.name)}"></label>`).join("")||'<p class="sub">元数据中没有其它检索字段</p>'}catch(e){RMETA=false;toast(e.message)}}
+document.querySelector('nav button[data-t="js"]').addEventListener("click",()=>{if(!window.__rm){window.__rm=1;roomsInit()}});
 const RCOLS=[["campus","学校校区"],["building","教学楼"],["kind","教室类型"],["name","教室名称"],["free_date","空闲日期"],["free_periods","空闲节次"],["free_time","空闲时间"],["seats","上课座位数"],["exam_seats","考试座位数"]];
 function renderRooms(j){const box=$("#rres");box.hidden=false;const n=k=>["seats","exam_seats"].includes(k);const rs=[...RR].sort((a,b)=>{const x=a[RS.k],y=b[RS.k];return RS.d*(n(RS.k)?(+x||0)-(+y||0):String(x).localeCompare(String(y),"zh"))});
  const head=j.mode==="week"?`第${esc(j.weeks)}周 周${"一二三四五六日"[j.weekday-1]}`:`${esc(j.date)} <span class="sub">${j.week>0?"第"+j.week+"周 ":""}周${"一二三四五六日"[j.weekday-1]}</span>`;
