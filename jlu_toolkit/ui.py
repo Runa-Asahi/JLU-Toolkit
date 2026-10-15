@@ -487,6 +487,11 @@ def make_handler(store: Store, login: Optional[LoginFlow] = None):
             if path in ("/", "/index.html"):
                 return self._send(200, PAGE.encode(), "text/html; charset=utf-8",
                                   {"Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"})
+            if path in ("/favicon.svg", "/favicon.ico"):  # SuperJLU 官方标志
+                from importlib import resources
+                data = resources.files("jlu_toolkit").joinpath("data", path[1:]).read_bytes()
+                ctype = "image/svg+xml" if path.endswith(".svg") else "image/x-icon"
+                return self._send(200, data, ctype)
             if path == "/api/sessions":  # 各校园站点会话状态（只读本地）
                 from . import sessions
                 return self._json(sessions.all_status())
