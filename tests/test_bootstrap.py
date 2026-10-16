@@ -26,3 +26,16 @@ def test_ui_page_auto_refresh_hooks():
     assert "async function fullRefresh" in page
     assert "登录成功，正在刷新各页面" in page
     assert 'await lgDone()' in page
+
+
+def test_encrypted_completion_counts_as_cached(tmp_path):
+    from jlu_toolkit import secure_store
+    store = ui.Store(tmp_path)
+    for name in ui.BOOTSTRAP_CACHE_FILES:
+        if name == "completion.json":
+            secure_store.save_json(store.p(name), {"groups": []})
+        elif name.endswith(".json"):
+            store.p(name).write_text("{}", encoding="utf-8")
+        else:
+            store.p(name).write_text("x\n", encoding="utf-8")
+    assert ui.needs_bootstrap(store) is False

@@ -253,7 +253,10 @@ BOOTSTRAP_CACHE_FILES = (
 
 def needs_bootstrap(store: Store) -> bool:
     """本地还缺课表/成绩/考试/校历/学业任一缓存时，登录后应自动全量刷新。"""
-    return any(not store.p(n).exists() for n in BOOTSTRAP_CACHE_FILES)
+    from . import secure_store
+    # completion.json 等个人缓存加密后落盘为 *.enc，必须用 secure_store 判断是否存在
+    return any(not (store.p(n).exists() or secure_store.json_exists(store.p(n)))
+               for n in BOOTSTRAP_CACHE_FILES)
 
 
 def cache_info(store: Store) -> dict:
