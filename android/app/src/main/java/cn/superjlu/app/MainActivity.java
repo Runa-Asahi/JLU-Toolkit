@@ -113,7 +113,10 @@ public class MainActivity extends Activity {
                 }
             }
             v.setPadding(l, t, r, b);
-            return in;
+            // 根布局已经按 insets 让出了位置，这里把 insets 消费掉，不再往下传给 WebView。
+            // 否则新版 WebView 会把同样的 insets 当成 CSS env(safe-area-inset-*)，页面顶部再空一次，出现大块留白。
+            if (Build.VERSION.SDK_INT >= 30) return WindowInsets.CONSUMED;
+            return in.consumeSystemWindowInsets();
         });
         root.requestApplyInsets();
     }
